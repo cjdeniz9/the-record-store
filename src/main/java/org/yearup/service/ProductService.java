@@ -16,8 +16,7 @@ public class ProductService
         this.productRepository = productRepository;
     }
 
-    public List<Product> search(Integer categoryId, Double minPrice, Double maxPrice, String subCategory)
-    {
+    public List<Product> search(Integer categoryId, Double minPrice, Double maxPrice, String subCategory) {
         List<Product> products = categoryId != null
                 ? productRepository.findByCategoryId(categoryId)
                 : productRepository.findAll();
@@ -26,7 +25,6 @@ public class ProductService
                        .filter(p -> minPrice == null || p.getPrice() >= minPrice)
                        .filter(p -> maxPrice == null || p.getPrice() <= maxPrice)
                        .filter(p -> subCategory == null || subCategory.equalsIgnoreCase(p.getSubCategory()))
-                       .filter(Product::isFeatured)
                        .toList();
     }
 
@@ -40,20 +38,19 @@ public class ProductService
         return productRepository.findById(productId).orElse(null);
     }
 
-    public Product create(Product product)
-    {
+    public Product create(Product product) {
         product.setProductId(0);
         return productRepository.save(product);
     }
 
-    public Product update(int productId, Product product)
-    {
+    public Product update(int productId, Product product) {
         Product existing = productRepository.findById(productId).orElseThrow();
         existing.setName(product.getName());
         existing.setPrice(product.getPrice());
         existing.setCategoryId(product.getCategoryId());
         existing.setDescription(product.getDescription());
         existing.setSubCategory(product.getSubCategory());
+        existing.setStock(product.getStock());
         existing.setFeatured(product.isFeatured());
         existing.setImageUrl(product.getImageUrl());
         return productRepository.save(existing);
