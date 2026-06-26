@@ -16,6 +16,7 @@ public class ProductService
         this.productRepository = productRepository;
     }
 
+    // Search products using optional category, price, and subcategory filters
     public List<Product> search(Integer categoryId, Double minPrice, Double maxPrice, String subCategory) {
         List<Product> products = categoryId != null
                 ? productRepository.findByCategoryId(categoryId)

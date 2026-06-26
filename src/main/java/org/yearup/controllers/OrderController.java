@@ -26,6 +26,7 @@ public class OrderController
         this.userService = userService;
     }
 
+    // Creates a new order from the authenticated user's shopping cart
     @PostMapping
     public ResponseEntity<Order> checkout(Principal principal)
     {

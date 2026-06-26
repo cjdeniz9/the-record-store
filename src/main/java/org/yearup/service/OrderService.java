@@ -27,10 +27,12 @@ public class OrderService {
         this.profileRepository = profileRepository;
     }
 
+    // Creates an order from the user's shopping cart
     @Transactional
     public Order checkout(int userId) {
         Profile profile = profileRepository.findByUserId(userId);
 
+        // Create a new order using the user's profile information
         Order order = new Order();
         order.setUserId(userId);
         order.setDate(LocalDate.now());
@@ -43,10 +45,12 @@ public class OrderService {
 
         List<CartItem> cartItems = shoppingCartRepository.findByUserId(userId);
 
+        // Prevent checkout if the cart is empty
         if (cartItems.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
         }
 
+        // Create an order line item for each product in the cart
         for(CartItem cartItem : cartItems) {
             Product product = productRepository.findById(cartItem.getProductId())
                     .orElseThrow();
@@ -61,6 +65,7 @@ public class OrderService {
             orderLineItemRepository.save(lineItem);
         }
 
+        // Clear the user's cart after a successful checkout
         shoppingCartRepository.deleteByUserId(userId);
 
         return savedOrder;

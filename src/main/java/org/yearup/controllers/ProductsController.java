@@ -22,6 +22,7 @@ public class ProductsController
         this.productService = productService;
     }
 
+    // Search for products using optional filters
     @GetMapping("")
     @PreAuthorize("permitAll()")
     public List<Product> search(@RequestParam(name="cat", required = false) Integer categoryId,

@@ -23,6 +23,7 @@ public class ProfileController {
         this.userService = userService;
     }
 
+    // Retrieve the authenticated user's profile
     @GetMapping
     public Profile getProfile(Principal principal) {
         String userName = principal.getName();
