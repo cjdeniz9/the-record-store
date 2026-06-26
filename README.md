@@ -156,41 +156,56 @@ Unit tests cover `CategoryService` (all CRUD methods) and `ProductService` (sear
 
 ## 💡 Interesting Piece of Code
 
-### The Product Search Bug Fix
+### Transactional Checkout Process
 
-One of the most interesting challenges in this project was debugging a subtle bug in the product search logic. Users reported that `GET /products` with no filters was returning fewer products than actually existed in the database — but there was no obvious error, and the endpoint returned 200 OK every time.
+One of the most interesting pieces of code in this project is the `checkout()` method. This method is responsible for processing a customer's purchase from start to finish while ensuring the database remains in a consistent state. It combines data from multiple tables, validates the user's shopping cart, creates an order, generates order line items, and clears the cart once the purchase is complete.
 
-**The bug — before the fix:**
+**The checkout logic:**
 
 ```java
-public List<Product> search(Integer categoryId, Double minPrice, Double maxPrice, String subCategory)
-{
-    List<Product> products = categoryId != null
-            ? productRepository.findByCategoryId(categoryId)
-            : productRepository.findAll();
+@Transactional
+public Order checkout(int userId) {
+    Profile profile = profileRepository.findByUserId(userId);
 
-    return products.stream()
-                   .filter(p -> minPrice == null || p.getPrice() >= minPrice)
-                   .filter(p -> maxPrice == null || p.getPrice() <= maxPrice)
-                   .filter(p -> subCategory == null || subCategory.equalsIgnoreCase(p.getSubCategory()))
-                   .filter(Product::isFeatured)  // ← the bug
-                   .toList();
+    Order order = new Order();
+    order.setUserId(userId);
+    order.setDate(LocalDate.now());
+    order.setAddress(profile.getAddress());
+    order.setCity(profile.getCity());
+    order.setState(profile.getState());
+    order.setZip(profile.getZip());
+    order.setShippingAmount(BigDecimal.ZERO);
+    Order savedOrder = orderRepository.save(order);
+
+    List<CartItem> cartItems = shoppingCartRepository.findByUserId(userId);
+
+    if (cartItems.isEmpty()) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
+    }
+
+    for (CartItem cartItem : cartItems) {
+        Product product = productRepository.findById(cartItem.getProductId())
+                .orElseThrow();
+
+        OrderLineItem lineItem = new OrderLineItem();
+        lineItem.setOrderId(savedOrder.getOrderId());
+        lineItem.setProductId(cartItem.getProductId());
+        lineItem.setSalesPrice(BigDecimal.valueOf(product.getPrice()));
+        lineItem.setQuantity(cartItem.getQuantity());
+        lineItem.setDiscount(BigDecimal.ZERO);
+
+        orderLineItemRepository.save(lineItem);
+    }
+
+    shoppingCartRepository.deleteByUserId(userId);
+
+    return savedOrder;
 }
 ```
 
-**Why it's subtle:** the first three filters all follow the same safe pattern — they only apply when the caller actually provided that parameter (`parameter == null || <condition>`). But the last line, `.filter(Product::isFeatured)`, has no parameter behind it at all. It runs unconditionally on every single request, silently discarding any product where `featured = false` in the database — even when the caller never asked to filter by featured status.
+**Why it's interesting:** This method demonstrates how a real e-commerce checkout is handled on the backend. The `@Transactional` annotation ensures that every database operation succeeds or fails together. If an error occurs while creating the order or saving any line item, the entire transaction is rolled back, preventing incomplete or inconsistent data.
 
-**The fix:**
-
-```java
-return products.stream()
-               .filter(p -> minPrice == null || p.getPrice() >= minPrice)
-               .filter(p -> maxPrice == null || p.getPrice() <= maxPrice)
-               .filter(p -> subCategory == null || subCategory.equalsIgnoreCase(p.getSubCategory()))
-               .toList(); // removed the unconditional isFeatured filter
-```
-
-**Why this is interesting:** the bug wasn't a typo or a missing null check — it was a logical error where a filter was applied without any "off switch." It taught me to look beyond whether code *compiles and runs* to whether it *does only what was asked*. The fix was one line, but finding it required understanding the difference between a parameter the caller controls and a property that belongs to the data itself.
+The method also coordinates several parts of the application in one workflow. It retrieves the user's shipping information from their profile, validates that the shopping cart is not empty, creates a new order, converts each cart item into an order line item using the current product information, and finally clears the shopping cart after a successful purchase. This feature demonstrates the use of Spring Boot transactions, JPA repositories, exception handling, and object-oriented design to implement a complete business process similar to what is used in real-world e-commerce applications.
 
 ---
 
